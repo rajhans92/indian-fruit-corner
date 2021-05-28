@@ -6,21 +6,23 @@ var indexRouter = require("./routes/index");
 var apiRouter = require("./routes/api");
 var apiResponse = require("./helpers/apiResponse");
 var cors = require("cors");
-var db = require("./helpers/databaseConfig");
+// var db = require("./helpers/databaseConfig");
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const swaggerOption = require('./docTemplate/swegger.js');
+const mongoose = require('mongoose');
 
 // DB connection
   
-db.connect(function(err) {
-	if (err) throw err;
-	if(process.env.NODE_ENV !== "test") {
-		console.log("Connected to db");
-		console.log("App is running ... \n");
-		console.log("Press CTRL + C to stop the process. \n");
-	}
-})
+mongoose.connect(process.env.MONGODB_URI, { useCreateIndex: true, useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false });
+// db.connect(function(err) {
+// 	if (err) throw err;
+// 	if(process.env.NODE_ENV !== "test") {
+// 		console.log("Connected to db");
+// 		console.log("App is running ... \n");
+// 		console.log("Press CTRL + C to stop the process. \n");
+// 	}
+// })
 
 var app = express();
 

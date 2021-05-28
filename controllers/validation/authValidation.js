@@ -2,7 +2,6 @@ const { body,validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
 
 const userModel = require("../../models/userModel");
-
 // valication for registation request
 exports.registration = [
     body("firstName").matches(/^[a-zA-Z]{1,20}$/).trim().withMessage("First name has not empty and non-alphanumeric characters."),
@@ -12,7 +11,7 @@ exports.registration = [
 	body("email").isEmail().withMessage("Email must be a valid email address.").custom((value) => {
 			return new Promise(function(resolve, reject) {
 				userModel.emailIsExist(value,function(error,data){
-						if (!error) {
+						if (!error && data) {
 							reject('E-mail already in use');
 						}else{
 							resolve();

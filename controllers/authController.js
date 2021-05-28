@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const moment = require('moment');
-const bcrypt = require('bcrypt');
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 
@@ -55,7 +54,7 @@ exports.register = [
 	// Validate fields.
 	authValidation.registration,
 	// Process request after validation and sanitization.
-	(request, response) => {
+	async (request, response) => {
 		try {
 			// Extract the validation errors from a request.
 			const errors = validationResult(request);
@@ -63,45 +62,40 @@ exports.register = [
 				// Display sanitized values/errors messages.
 				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
 			}else {
-				//hash input password
-				bcrypt.hash(request.body.password,10,function(err, hash) {
 
-					var verifyToken = crypto.randomBytes(40).toString('hex');
+				var verifyToken = crypto.randomBytes(40).toString('hex'); // create token for account verificaton
 
-					let userData = [
-						request.body.firstName,
-						request.body.lastName,
-						request.body.email,
-						request.body.phoneNo,
-						hash,
-						process.env.ROLE_ID,
-						1,
-						verifyToken,
-						moment().format("YYYY-MM-DD HH:mm:ss")
-					];
-					console.log("data = ",userData);
-					
-					userModel.registration(userData,function(error){
-						if(!error){
-							// Html email body
-							let html = `<p>Hi ${request.body.firstName} ${request.body.lastName},<br></p><p>Please click this link and Confirm your Account.</p> <a href="${process.env.WEBSITE_URL}/activation/${verifyToken}">Active</a>`;
-							// Send confirmation email
-							mailer.send(
+				let userData = {
+					firstName:request.body.firstName,
+					lastName:request.body.lastName,
+					email:request.body.email,
+					phoneNo:request.body.phoneNo,
+					password:request.body.password,
+					verifyToken:verifyToken,
+					status:1
+				};
+
+				userModel.registration(userData,async function(error,data){
+					if(!error){
+						// Html email body
+						let html = `<p>Hi ${request.body.firstName} ${request.body.lastName},<br></p><p>Please click this link and Confirm your Account.</p> <a href="${process.env.WEBSITE_URL}/activation/${verifyToken}">Active</a>`;
+						// Send confirmation email
+						try{
+							await mailer.send(
 								constants.confirmEmails.from, 
 								request.body.email,
 								"Confirm Account",
 								html
-							).then(function(){
-								return apiResponse.successResponse(response,"Registration Successfully.");
-							}).catch(err => {
-								console.log(err);
-								return apiResponse.ErrorResponse(response,err);
-							}) ;
-						}else{
-							return apiResponse.unauthorizedResponse(response, "Something went wrong!");
+							);
+							return apiResponse.successResponse(response,"Registration Successfully.");
+						}catch(error){
+							return apiResponse.ErrorResponse(response,"Registration Successfully, But verifying mail couldn't be sent. Please contact to administrator.");
 						}
-					})
-				});
+	
+					}else{
+						return apiResponse.unauthorizedResponse(response, "Something went wrong!");
+					}
+				})
 			}
 		} catch (error) {
 			//throw error in json response with status 500.
@@ -148,9 +142,9 @@ exports.login = [
 				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
 			}else {
 				userModel.emailIsExist(request.body.email,function(error,data){
-					if(!error){
+					if(!error && data){
 						userModel.login(request.body.email,request.body.password,function(error,user){
-							if(!error){
+							if(!error && user){
 								let userData = user;
 								//Prepare JWT token for authentication
 								const jwtPayload = userData;
