@@ -72,7 +72,7 @@ exports.register = [
 					phoneNo:request.body.phoneNo,
 					password:request.body.password,
 					verifyToken:verifyToken,
-					status:1
+					status:0
 				};
 
 				userModel.registration(userData,async function(error,data){
