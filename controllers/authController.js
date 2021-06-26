@@ -2,14 +2,138 @@ const crypto = require('crypto');
 const moment = require('moment');
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
-
+const client = require('twilio')(process.env.TWILLIO_ACCOUNT_SID,process.env.TWILLIO_AUTH_TOKEN);
 const authValidation = require("./validation/authValidation");
-const userModel = require("../models/userModel");
+const userModel = {};
 const apiResponse = require("../helpers/apiResponse");
 const utility = require("../helpers/utility");
 const mailer = require("../helpers/mailer");
 const { constants } = require("../helpers/constants");
 const auth = require("../middlewares/jwt");
+
+
+/**
+ * @swagger
+ * /api/auth/send-otp:
+ *   post:
+ *     tags:
+ *       - AuthController
+ *     description: Send OTP using phone number api
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: body
+ *         description: Request Object
+ *         in: body
+ *         required: true
+ *         schema:
+ *           type: object
+ *           required:
+ *             - phoneNo
+ *           properties:
+ *             phoneNo:
+ *               type: integer
+ *     	responses:
+ *        '200':
+ *          description: OTP sent Successfully
+ *        '401':
+ *          description: Invalid Phone Number
+ */
+
+ exports.sendOtp = [
+	// Validate fields.
+	authValidation.sendOtp,
+	// Process request after validation and sanitization.
+	async (request, response) => {
+		try {
+			// Extract the validation errors from a request.
+			const errors = validationResult(request);
+			if (!errors.isEmpty()) {
+				// Display sanitized values/errors messages.
+				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
+			}else {
+				const phoneNo = request.body.phoneNo;
+				const otp = Math.floor(100000 + Math.random()*900000);
+				const ttl = parseInt(process.env.OTP_TIMEOUT_DURATION) *60*1000;
+				const expire = Date.now() + ttl;
+				const data = `${phoneNo}.${otp}.${expire}`
+				const hash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
+				const fullHash = `${hash}.${expire}`;
+
+				client.messages.create({
+					body: `You one time password for IFC is ${otp}`,
+					from: process.env.TWILLIO_NUMBER,
+					to: `${process.env.COUNTRY_CODE}${phoneNo}`
+				}).then((message)=>{
+					return apiResponse.successResponse(response,"OTP sent Successfully.",{phoneNo,hash:fullHash});
+				}).catch((error)=>{
+					console.log(error);
+					return apiResponse.ErrorResponse(response, "Something went wrong!");
+				});
+
+				// return apiResponse.successResponse(response,"OTP sent Successfully.",{phoneNo,hash:fullHash});
+
+			}
+		} catch (error) {
+			//throw error in json response with status 500.
+			return apiResponse.ErrorResponse(response, error);
+		}
+	}];
+
+/**
+ * @swagger
+ * /api/auth/verify-otp:
+ *   post:
+ *     tags:
+ *       - AuthController
+ *     description: Verify OTP api
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: body
+ *         description: Request Object
+ *         in: body
+ *         required: true
+ *         schema:
+ *           type: object
+ *           required:
+ *             - phoneNo
+ *             - hash
+ *             - otp
+ *           properties:
+ *             phoneNo:
+ *               type: integer
+ *             hash:
+ *               type: string
+ *             otp:
+ *               type: integer
+ *     	responses:
+ *       200:
+ *         description: OTP verified Successfully
+ *       401:
+ *         description: Invalid OTP, please try again.
+ */
+
+ exports.verifyOtp = [
+	// Validate fields.
+	authValidation.verifyOtp,
+	// Process request after validation and sanitization.
+	async (request, response) => {
+		try {
+			// Extract the validation errors from a request.
+			const errors = validationResult(request);
+			if (!errors.isEmpty()) {
+				// Display sanitized values/errors messages.
+				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
+			}else {
+				
+			}
+		} catch (error) {
+			//throw error in json response with status 500.
+			return apiResponse.ErrorResponse(response, error);
+		}
+	}];
+
 
 /**
  * @swagger
