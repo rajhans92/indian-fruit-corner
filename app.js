@@ -20,7 +20,14 @@ db.connect(function(err) {
 		console.log("Press CTRL + C to stop the process. \n");
 	}
 })
-
+db.on('error', function(err) {
+    console.log('db error', err);
+    if(err.code === 'PROTOCOL_CONNECTION_LOST') { // Connection to the MySQL server is usually
+      handleDisconnect();                         // lost due to either server restart, or a
+    } else {                                      // connnection idle timeout (the wait_timeout
+      throw err;                                  // server variable configures this)
+    }
+  });
 var app = express();
 
 //don't show the log when it is test
