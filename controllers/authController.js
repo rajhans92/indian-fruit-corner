@@ -60,18 +60,18 @@ const auth = require("../middlewares/jwt");
 				const hash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
 				const fullHash = `${hash}.${expire}`;
 
-				client.messages.create({
-					body: `You one time password for IFC is ${otp}`,
-					from: process.env.TWILLIO_NUMBER,
-					to: `${process.env.COUNTRY_CODE}${phoneNo}`
-				}).then((message)=>{
-					return apiResponse.successResponse(response,"OTP sent Successfully.",{phoneNo,hash:fullHash});
-				}).catch((error)=>{
-					console.log(error);
-					return apiResponse.ErrorResponse(response, "Something went wrong!");
-				});
+				// client.messages.create({
+				// 	body: `You one time password for IFC is ${otp}`,
+				// 	from: process.env.TWILLIO_NUMBER,
+				// 	to: `${process.env.COUNTRY_CODE}${phoneNo}`
+				// }).then((message)=>{
+				// 	return apiResponse.successResponseWithData(response,"OTP sent Successfully.",{phoneNo,hash:fullHash});
+				// }).catch((error)=>{
+				// 	console.log(error);
+				// 	return apiResponse.ErrorResponse(response, "Something went wrong!");
+				// });
 
-				// return apiResponse.successResponse(response,"OTP sent Successfully.",{phoneNo,hash:fullHash});
+				return apiResponse.successResponseWithData(response,"OTP sent Successfully.",{phoneNo,hash:fullHash,otp:otp});
 
 			}
 		} catch (error) {
@@ -120,13 +120,30 @@ const auth = require("../middlewares/jwt");
 	// Process request after validation and sanitization.
 	async (request, response) => {
 		try {
+			console.log("request ",request.body);
 			// Extract the validation errors from a request.
 			const errors = validationResult(request);
 			if (!errors.isEmpty()) {
 				// Display sanitized values/errors messages.
 				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
 			}else {
-				
+				const phoneNo = request.body.phoneNo;
+				const hash = request.body.hash;
+				const otp = request.body.otp;
+				let [hashValue, expires] = hash.slipt('.');
+				let now = Date.now();
+				console.log("entry ");
+
+				if(now > parseInt(expires)){
+					return apiResponse.ErrorResponse(response, "OTP expired, please try again.");
+				}
+				const data = `${phoneNo}.${otp}.${expires}`
+				const genHhash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
+				if( genHhash !== hashValue){
+					return apiResponse.ErrorResponse(response, "Invalid OTP.");
+				}
+				return apiResponse.successResponse(response,"OTP verified Successfully.");
+
 			}
 		} catch (error) {
 			//throw error in json response with status 500.
