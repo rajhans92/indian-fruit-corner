@@ -8,7 +8,7 @@ exports.emailIsExist = (email,callback) => {
 			callback(true, {msg:"Email Id is not exist!"});
 		}
 		else{
-			callback(false, {});
+			callback(false, {}); 
 		}
 	}); 
 }

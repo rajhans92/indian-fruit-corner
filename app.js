@@ -4,6 +4,9 @@ var logger = require("morgan");
 require("dotenv").config();
 var indexRouter = require("./routes/index");
 var apiRouter = require("./routes/api");
+
+
+
 var apiResponse = require("./helpers/apiResponse");
 var cors = require("cors");
 var db = require("./helpers/databaseConfig");
@@ -59,4 +62,4 @@ app.use((err, req, res) => {
 	}
 });
 
-module.exports = app;
+module.exports = app; 
