@@ -1,5 +1,11 @@
+var express = require("express");
+require("../routes/userManagement");
+
+
+
+
 // Create and Save a new User
-app.create = (req, res) => {
+router.create = (req, res) => {
     // Validate request
     if (!req.body) {
       res.status(400).send({
@@ -31,7 +37,7 @@ app.create = (req, res) => {
 
 
 // Retrieve all Users from the database.
-app.findAll = (req, res) => {
+router.findAll = (req, res) => {
     User.getAll((err, data) => {
       if (err)
         res.status(500).send({
@@ -45,7 +51,7 @@ app.findAll = (req, res) => {
 
 
 // Find a single User with a userId
-app.findOne = (req, res) => {
+router.findOne = (req, res) => {
     User.findById(req.params.userId, (err, data) => {
       if (err) {
         if (err.kind === "not_found") {
@@ -64,7 +70,7 @@ app.findOne = (req, res) => {
 
 
 // Update a User identified by the userId in the request
-app.update = (req, res) => {
+router.update = (req, res) => {
     // Validate Request
     if (!req.body) {
       res.status(400).send({
@@ -94,7 +100,7 @@ app.update = (req, res) => {
 
 
 // Delete a User with the specified userId in the request
-app.delete = (req, res) => {
+router.delete = (req, res) => {
     User.remove(req.params.userId, (err, data) => {
       if (err) {
         if (err.kind === "not_found") {
@@ -113,7 +119,7 @@ app.delete = (req, res) => {
 
 
 // Delete all Users from the database.
-app.deleteAll = (req, res) => {
+router.deleteAll = (req, res) => {
     User.removeAll((err, data) => {
       if (err)
         res.status(500).send({
