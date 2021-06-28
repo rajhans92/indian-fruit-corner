@@ -1,93 +1,178 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+var hash = require('bcrypt');
+var sql = require('../helpers/databaseConfig');
 
-const Schema = mongoose.Schema;
+exports.loginWithContactNo = async (contactNo,callback) => {
 
-// set users table structure
-const userSchema = new Schema({
-    firstName:{
-        type:String,
-        required: true
-    },
-    lastName:{
-        type:String
-    },
-    email:{
-        type:String,
-        unique: true, 
-        required: true
-    },
-    phoneNo:{
-        type:String,
-        required: true,
-        min:10,
-        max:15,
-    },
-    password:{
-        type:String,
-        required: true,
-        min:5
-    },
-    verifyToken:{
-        type:String,
-        required: true
-    },
-    status:{
-        type:Number,
-        required: true,
-        min:1,
-        max:1,
-        default:0
-    }
-},{timestemps:true});
+	sql.query(`Select id,first_name,last_name,email_id,contact_no,profile_pic,roles,verify_mail,status from users where contact_no = ? AND status='1' limit 1`, contactNo,function (error, user) {    
 
-const userModel = mongoose.model('users',userSchema);
+		if(error) {
+			callback(true, "Wrong Email Id or Password!");
+		}else{
+			if(!user.length){
+				let userData = [
+					contactNo,
+					'1',
+					'1',
+					'1'
+				];
+				let userQuery = "INSERT INTO users (contact_no,verify_contact_no, roles, status) VALUES (?,?,?,?)";
+				sql.query(userQuery, userData, function (err, result) {  					
+					if (err){
+						callback(true, "Wrong Email Id or Password!");
+					}else{
+						let userTemp = {
+							'id':result.insertId,
+							'first_name':null,
+							"last_name":null,
+							"email_id":null,
+							"profile_pic":null,
+							'contact_no':contactNo,
+							'verify_mail':0,
+							'roles':1,
+							'status':1
+						}
+						callback(false, userTemp);
+					}
+				});
+			}else{
+				user = JSON.parse(JSON.stringify(user))[0];
+				callback(false, user);
+	
+			}
+		}
+	});
+}
 
-// registration ORM
-exports.registration = async (data,callback) => {
-    try{
-        // create hash string for passwrd
-        data.password = await bcrypt.hash(data.password,10);  
+exports.emailIsExist = (email,callback) => {
+	sql.query(`Select * from users where email = ? `, email, function (error, users) {    
+		         
+		if(error || !users.length) {
+			callback(true, {msg:"Email Id is not exist!"});
+		}
+		else{
+			callback(false, {});
+		}
+	}); 
+}
 
-        const user = new userModel(data);
-        user.save((err, user) => {      // save data in mongodb and create new user
-            return callback(err,user);
-        });
-    }catch(error){
-        return callback(error,null);
-    }
-};
-
-// login ORM
 exports.login = (email,password,callback) => {
-    userModel.findOne({     // check user id exist or not
-        email:email
-    },(error,user)=>{
-        if(!error){
-            var passwordIsValid = bcrypt.compareSync(password, user.password);  // compair encrypted password
-            if (passwordIsValid){
-                let data = {
-                    id: user._id,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    email: user.email,
-                    phoneNo: user.phoneNo
-                };
-                return callback(error,data);
-            }else{
-                return callback(error,"Invalid Password.");
-            }
-        }else{
-            return callback(error,"Invalid User id.");
-        }
-    });
-};
+	sql.query(`Select * from users where email = ?`, email,function (error, users) {    
 
-//check user is already exist or not 
-exports.emailIsExist = (data,callback) => {
-    userModel.findOne({
-        email:data
-    }).exec((err, user)=>{
-        return callback(err, user);
-    });
-};
+		if(error || !users.length) {
+			callback(true, {msg:"Wrong Email Id or Password!"});
+		}
+		else{
+			users = JSON.parse(JSON.stringify(users))[0];
+			users.password = users.password.replace('$2y$', '$2a$');
+		    if(!hash.compareSync(password,users.password)){
+				callback(true, {msg:"Wrong Email Id or Password!"});
+			}else{
+				if(users.role_id && users.role_id == process.env.ROLE_ID){
+					if(users.status && users.status == process.env.ACTIVE_STATUS){
+						let userData = {
+							"id": users.id,
+							"first_name": users.first_name,
+							"last_name": users.last_name,
+							"email": users.email,
+							"phone_no": users.phone_no,
+							"alt_phone_no": users.alt_phone_no,
+						}
+						sql.query(`Select * from students where user_id = ?`, users.id,function (error, student) {    
+							if(!error && student.length){
+								student = JSON.parse(JSON.stringify(student))[0];
+								userData.dob = student.dob;
+								userData.education = student.education;
+								userData.profile_pic = student.profile_pic;
+								userData.about = student.about;
+								userData.address = student.address;
+							}
+							callback(false, userData);	  				
+						});
+					}else{
+						callback(true, {msg:"Please verify your email id first!"});	  
+					}
+				}else{
+					callback(true, {msg:"Only Students are allow to login!"});	  
+				}
+			}
+		}
+	}); 
+}
+
+exports.registration = (userData,callback) => {
+	let userQuery = "INSERT INTO users (first_name, last_name, email, phone_no, password, role_id, status, verify_token, created_at) VALUES (?,?,?,?,?,?,?,?,?)";
+	sql.query(userQuery, userData, function (err, result) {  
+		console.log("result ",result,err);
+		
+		if (err){
+			callback(true);
+		}else{
+			result = JSON.parse(JSON.stringify(result));
+			console.log("after = ",result);
+			
+			let studentQuery = "INSERT INTO students (user_id) VALUES (?)";
+			sql.query(studentQuery, result.insertId, function (err, sresult) { 
+				if (err){
+					callback(true);
+				}else{
+					callback(false);
+				}
+			})
+		}
+	});
+}
+
+exports.verifyToken = (token,callback) => {
+	sql.query(`Select * from users where verify_token = ?`, token,function (error, users) {    
+
+		if(error || !users.length) {
+			callback(true, "Invalid Token!");
+		}
+		else{
+			users = JSON.parse(JSON.stringify(users))[0];
+			if(users.status && users.status == 1){
+				sql.query(`Update users set status = 2 where verify_token = ?`, token,function (error, tokenUpdate) {
+					if(error){
+						callback(true, "Something Went Wrong!");
+					}else{
+						callback(false, "Email Id verified successfully!");
+					}
+				});
+			}else{
+				callback(true, "User Profile already Active!");
+			}
+		}
+	});
+}
+
+exports.passwordIsExist = (userId,password,callback) => {
+	sql.query(`Select * from users where id = ? `, userId,function (error, users) {    
+		if(error || !users.length) {
+			callback(true, "Invalid User.");
+		}
+		else{
+			users = JSON.parse(JSON.stringify(users))[0];
+			if(users.status == 2){
+				users.password = users.password.replace('$2y$', '$2a$');
+
+				if(!hash.compareSync(password,users.password)){
+					callback(true, "Invalid current password!" );
+				}else{
+					callback(false, null);
+				}
+			}else{
+				callback(true, "User Profile is not activated!" );
+			}
+		}
+	});
+}
+
+exports.updatePassword = (userId, password, callback) => {
+	sql.query(`Update users set password = ? where id = ?`, [password, userId],function (error) {
+		if(error){
+			callback(true, "Something went wrong!" );			
+		}else{
+			callback(false, "Password Updated Successfully.");				
+		}
+	});
+}

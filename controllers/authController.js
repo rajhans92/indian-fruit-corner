@@ -1,10 +1,9 @@
 const crypto = require('crypto');
-const moment = require('moment');
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const client = require('twilio')(process.env.TWILLIO_ACCOUNT_SID,process.env.TWILLIO_AUTH_TOKEN);
 const authValidation = require("./validation/authValidation");
-const userModel = {};
+const userModel = require("../models/userModel");;
 const apiResponse = require("../helpers/apiResponse");
 const utility = require("../helpers/utility");
 const mailer = require("../helpers/mailer");
@@ -120,19 +119,18 @@ const auth = require("../middlewares/jwt");
 	// Process request after validation and sanitization.
 	async (request, response) => {
 		try {
-			console.log("request ",request.body);
 			// Extract the validation errors from a request.
 			const errors = validationResult(request);
 			if (!errors.isEmpty()) {
 				// Display sanitized values/errors messages.
 				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
 			}else {
-				const phoneNo = request.body.phoneNo;
-				const hash = request.body.hash;
-				const otp = request.body.otp;
-				let [hashValue, expires] = hash.slipt('.');
+
+				const phoneNo = request.body.phoneNo ? request.body.phoneNo : null;
+				const hash = request.body.hash ? request.body.hash : null;
+				const otp = request.body.otp ? request.body.otp : null;
+				let [hashValue, expires] = hash.split('.');
 				let now = Date.now();
-				console.log("entry ");
 
 				if(now > parseInt(expires)){
 					return apiResponse.ErrorResponse(response, "OTP expired, please try again.");
@@ -142,8 +140,22 @@ const auth = require("../middlewares/jwt");
 				if( genHhash !== hashValue){
 					return apiResponse.ErrorResponse(response, "Invalid OTP.");
 				}
-				return apiResponse.successResponse(response,"OTP verified Successfully.");
-
+				userModel.loginWithContactNo(phoneNo,async function(error,user){
+					if(!error && user){
+						let userData = user;
+						//Prepare JWT token for authentication
+						const jwtPayload = userData;
+						// const jwtData = {
+						// 	expiresIn: process.env.JWT_TIMEOUT_DURATION,
+						// };
+						const secret = process.env.JWT_SECRET;
+						//Generated JWT token with Payload and secret.
+						userData.token = jwt.sign(jwtPayload, secret);
+						return apiResponse.successResponseWithData(response,"OTP verified Successfully.", userData);
+					}else{
+						return apiResponse.unauthorizedResponse(response, user.msg);
+					}
+				});
 			}
 		} catch (error) {
 			//throw error in json response with status 500.
