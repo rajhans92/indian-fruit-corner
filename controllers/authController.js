@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const client = require('twilio')(process.env.TWILLIO_ACCOUNT_SID,process.env.TWILLIO_AUTH_TOKEN);
 const authValidation = require("./validation/authValidation");
-const userModel = require("../models/userModel");;
+const userModel = require("../models/userModel");
 const apiResponse = require("../helpers/apiResponse");
 const utility = require("../helpers/utility");
 const mailer = require("../helpers/mailer");
@@ -29,8 +29,11 @@ const auth = require("../middlewares/jwt");
  *           type: object
  *           required:
  *             - phoneNo
+ *             - userId
  *           properties:
  *             phoneNo:
+ *               type: integer
+ *             userId:
  *               type: integer
  *     	responses:
  *        '200':
@@ -55,9 +58,9 @@ const auth = require("../middlewares/jwt");
 				const otp = Math.floor(100000 + Math.random()*900000);
 				const ttl = parseInt(process.env.OTP_TIMEOUT_DURATION) *60*1000;
 				const expire = Date.now() + ttl;
-				const data = `${phoneNo}.${otp}.${expire}`
+				const data = request.body.userId ? `${phoneNo}.${otp}.${expire}.${request.body.userId}` : `${phoneNo}.${otp}.${expire}`;
 				const hash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
-				const fullHash = `${hash}.${expire}`;
+				const fullHash = request.body.userId ? `${hash}.${expire}.${request.body.userId}` : `${hash}.${expire}`;
 
 				// client.messages.create({
 				// 	body: `You one time password for IFC is ${otp}`,
@@ -98,11 +101,14 @@ const auth = require("../middlewares/jwt");
  *           required:
  *             - phoneNo
  *             - hash
+ *             - userId
  *             - otp
  *           properties:
  *             phoneNo:
  *               type: integer
  *             hash:
+ *               type: string
+ *             userId:
  *               type: string
  *             otp:
  *               type: integer
@@ -129,18 +135,21 @@ const auth = require("../middlewares/jwt");
 				const phoneNo = request.body.phoneNo ? request.body.phoneNo : null;
 				const hash = request.body.hash ? request.body.hash : null;
 				const otp = request.body.otp ? request.body.otp : null;
-				let [hashValue, expires] = hash.split('.');
+				let [hashValue, expires,userId] = hash.split('.');
 				let now = Date.now();
 
 				if(now > parseInt(expires)){
 					return apiResponse.ErrorResponse(response, "OTP expired, please try again.");
 				}
-				const data = `${phoneNo}.${otp}.${expires}`
+				if(request.body.userId && userId != request.body.userId){
+					return apiResponse.ErrorResponse(response, "Invalid user id, please try again.");
+				}
+				const data = request.body.userId ? `${phoneNo}.${otp}.${expires}.${request.body.userId}` : `${phoneNo}.${otp}.${expires}`;
 				const genHhash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
 				if( genHhash !== hashValue){
 					return apiResponse.ErrorResponse(response, "Invalid OTP.");
 				}
-				userModel.loginWithContactNo(phoneNo,async function(error,user){
+				userModel.loginWithContactNo(phoneNo,userId,async function(error,user){
 					if(!error && user){
 						let userData = user;
 						//Prepare JWT token for authentication
@@ -183,7 +192,6 @@ const auth = require("../middlewares/jwt");
  *           required:
  *             - firstName
  *             - lastName
- *             - phoneNo
  *             - email
  *             - password
  *           properties:
@@ -191,8 +199,6 @@ const auth = require("../middlewares/jwt");
  *               type: string
  *             lastName:
  *               type: string
- *             phoneNo:
- *               type: integer
  *             email:
  *               type: string
  *             password:
@@ -219,19 +225,19 @@ exports.register = [
 				var verifyToken = crypto.randomBytes(40).toString('hex'); // create token for account verificaton
 
 				let userData = {
-					firstName:request.body.firstName,
-					lastName:request.body.lastName,
-					email:request.body.email,
-					phoneNo:request.body.phoneNo,
+					firs_name:request.body.firstName,
+					last_name:request.body.lastName,
+					email_id:request.body.email,
 					password:request.body.password,
-					verifyToken:verifyToken,
-					status:0
+					verify_token:verifyToken,
+					role_id:'1',
+					status:'0'
 				};
 
-				userModel.registration(userData,async function(error,data){
+				userModel.registration(userData,async function(error){
 					if(!error){
 						// Html email body
-						let html = `<p>Hi ${request.body.firstName} ${request.body.lastName},<br></p><p>Please click this link and Confirm your Account.</p> <a href="${process.env.WEBSITE_URL}/activation/${verifyToken}">Active</a>`;
+						let html = `<p>Hi ${request.body.firstName} ${request.body.lastName},<br></p><p>Please click this link and Confirm your Account.</p> <a href="${process.env.APP_URL}:${process.env.APP_PORT}/activation/${verifyToken}">Active</a>`;
 						// Send confirmation email
 						try{
 							await mailer.send(
@@ -301,12 +307,12 @@ exports.login = [
 								let userData = user;
 								//Prepare JWT token for authentication
 								const jwtPayload = userData;
-								const jwtData = {
-									expiresIn: process.env.JWT_TIMEOUT_DURATION,
-								};
+								// const jwtData = {
+								// 	expiresIn: process.env.JWT_TIMEOUT_DURATION,
+								// };
 								const secret = process.env.JWT_SECRET;
 								//Generated JWT token with Payload and secret.
-								userData.token = jwt.sign(jwtPayload, secret, jwtData);
+								userData.token = jwt.sign(jwtPayload, secret);
 								return apiResponse.successResponseWithData(response,"Login Success.", userData);
 							}else{
 								return apiResponse.unauthorizedResponse(response, user.msg);
@@ -433,22 +439,16 @@ exports.changePassword = [
 				// Display sanitized values/errors messages.
 				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
 			}else {
-				bcrypt.hash(request.body.newPassword,10,function(err, hash) {
-					if(err){
-						return apiResponse.ErrorResponse(response, "Something went wrong!");
-					}else{
-						let userId = request.user.id;
-						let password = hash;
+				let userId = request.user.id;
+				let password = request.body.newPassword;
 
-						userModel.updatePassword(userId,password,function(error,msg){
-							if(error){
-								return apiResponse.ErrorResponse(response, msg);
-							}else{
-								return apiResponse.successResponse(response, msg);
-							}
-						})
+				userModel.updatePassword(userId,password,function(error,msg){
+					if(error){
+						return apiResponse.ErrorResponse(response, msg);
+					}else{
+						return apiResponse.successResponse(response, msg);
 					}
-				});
+				})
 			}
 
 		} catch (err) {
