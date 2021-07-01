@@ -29,8 +29,11 @@ const auth = require("../middlewares/jwt");
  *           type: object
  *           required:
  *             - phoneNo
+ *             - userId
  *           properties:
  *             phoneNo:
+ *               type: integer
+ *             userId:
  *               type: integer
  *     	responses:
  *        '200':
@@ -55,9 +58,9 @@ const auth = require("../middlewares/jwt");
 				const otp = Math.floor(100000 + Math.random()*900000);
 				const ttl = parseInt(process.env.OTP_TIMEOUT_DURATION) *60*1000;
 				const expire = Date.now() + ttl;
-				const data = `${phoneNo}.${otp}.${expire}`
+				const data = request.body.userId ? `${phoneNo}.${otp}.${expire}.${request.body.userId}` : `${phoneNo}.${otp}.${expire}`;
 				const hash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
-				const fullHash = `${hash}.${expire}`;
+				const fullHash = request.body.userId ? `${hash}.${expire}.${request.body.userId}` : `${hash}.${expire}`;
 
 				// client.messages.create({
 				// 	body: `You one time password for IFC is ${otp}`,
@@ -98,11 +101,14 @@ const auth = require("../middlewares/jwt");
  *           required:
  *             - phoneNo
  *             - hash
+ *             - userId
  *             - otp
  *           properties:
  *             phoneNo:
  *               type: integer
  *             hash:
+ *               type: string
+ *             userId:
  *               type: string
  *             otp:
  *               type: integer
@@ -129,18 +135,21 @@ const auth = require("../middlewares/jwt");
 				const phoneNo = request.body.phoneNo ? request.body.phoneNo : null;
 				const hash = request.body.hash ? request.body.hash : null;
 				const otp = request.body.otp ? request.body.otp : null;
-				let [hashValue, expires] = hash.split('.');
+				let [hashValue, expires,userId] = hash.split('.');
 				let now = Date.now();
 
 				if(now > parseInt(expires)){
 					return apiResponse.ErrorResponse(response, "OTP expired, please try again.");
 				}
-				const data = `${phoneNo}.${otp}.${expires}`
+				if(request.body.userId && userId != request.body.userId){
+					return apiResponse.ErrorResponse(response, "Invalid user id, please try again.");
+				}
+				const data = request.body.userId ? `${phoneNo}.${otp}.${expires}.${request.body.userId}` : `${phoneNo}.${otp}.${expires}`;
 				const genHhash = crypto.createHmac('sha256',process.env.SMS_SECRET_KET).update(data).digest('hex');
 				if( genHhash !== hashValue){
 					return apiResponse.ErrorResponse(response, "Invalid OTP.");
 				}
-				userModel.loginWithContactNo(phoneNo,async function(error,user){
+				userModel.loginWithContactNo(phoneNo,userId,async function(error,user){
 					if(!error && user){
 						let userData = user;
 						//Prepare JWT token for authentication

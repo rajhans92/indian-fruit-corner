@@ -1,39 +1,57 @@
 var bcrypt = require('bcrypt');
 var sql = require('../helpers/databaseConfig');
 
-exports.loginWithContactNo = async (contactNo,callback) => {
+exports.loginWithContactNo = async (contactNo,userId,callback) => {
 
-	sql.query(`Select id,first_name,last_name,email_id,contact_no,profile_pic,roles,verify_mail,status from users where contact_no = ? AND status='1' limit 1`, contactNo,function (error, user) {    
-
+	sql.query(`Select id,first_name,last_name,email_id,contact_no,profile_pic,role_id,verify_mail,status from users where contact_no = ? AND status='1' limit 1`, contactNo,function (error, user) {    
 		if(error) {
-			callback(true, "Something Went Wrong!");
+			callback(true, {msg:"Something Went Wrong!"});
 		}else{
 			if(!user.length){
-				let userData = [
-					contactNo,
-					'1',
-					'1',
-					'1'
-				];
-				let userQuery = "INSERT INTO users (contact_no,verify_contact_no, roles, status) VALUES (?,?,?,?)";
-				sql.query(userQuery, userData, function (err, result) {  					
-					if (err){
-						callback(true, "Wrong Email Id or Password!");
-					}else{
-						let userTemp = {
-							'id':result.insertId,
-							'first_name':null,
-							"last_name":null,
-							"email_id":null,
-							"profile_pic":null,
-							'contact_no':contactNo,
-							'verify_mail':0,
-							'roles':1,
-							'status':1
+				if(userId){
+					sql.query(`Update users set contact_no = ?, verify_contact_no = '1',status = '1' where id = ?`, [contactNo, userId],function (error,data) {
+						console.log("data",data);
+						if (error){
+							callback(true, {msg:"Something Went Wrong!"});
+						}else{
+							sql.query(`Select id,first_name,last_name,email_id,contact_no,profile_pic,role_id,verify_mail,status from users where contact_no = ? AND status='1' limit 1`, contactNo,function (error, user) {    
+								if(error) {
+									callback(true, {msg:"Something Went Wrong!"});
+								}else{
+									user = JSON.parse(JSON.stringify(user))[0];
+									callback(false, user);
+								}
+							});
 						}
-						callback(false, userTemp);
-					}
-				});
+					});
+				}else{
+					let userData = [
+						contactNo,
+						'1',
+						'1',
+						'1'
+					];
+					let userQuery = "INSERT INTO users (contact_no,verify_contact_no, role_id, status) VALUES (?,?,?,?)";
+					sql.query(userQuery, userData, function (err, result) {  					
+						if (err){
+							callback(true,{msg:"Something Went Wrong!"});
+						}else{
+							let userTemp = {
+								'id':result.insertId,
+								'first_name':null,
+								"last_name":null,
+								"email_id":null,
+								"profile_pic":null,
+								'contact_no':contactNo,
+								'verify_mail':0,
+								'role_id':1,
+								'status':1
+							}
+							callback(false, userTemp);
+						}
+					});
+				}
+
 			}else{
 				user = JSON.parse(JSON.stringify(user))[0];
 				callback(false, user);
@@ -48,6 +66,18 @@ exports.emailIsExist = (email,callback) => {
 		         
 		if(error || !users.length) {
 			callback(true, {msg:"Email Id is not exist!"});
+		}
+		else{
+			callback(false, {});
+		}
+	}); 
+}
+
+exports.userIdIsExist = (userId,callback) => {
+	sql.query(`Select * from users where id = ? `, userId, function (error, users) {    
+		         
+		if(error || !users.length) {
+			callback(true, {msg:"User Id is not exist!"});
 		}
 		else{
 			callback(false, {});
