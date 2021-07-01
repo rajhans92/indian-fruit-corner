@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const client = require('twilio')(process.env.TWILLIO_ACCOUNT_SID,process.env.TWILLIO_AUTH_TOKEN);
 const authValidation = require("./validation/authValidation");
-const userModel = require("../models/userModel");;
+const userModel = require("../models/userModel");
 const apiResponse = require("../helpers/apiResponse");
 const utility = require("../helpers/utility");
 const mailer = require("../helpers/mailer");
@@ -183,7 +183,6 @@ const auth = require("../middlewares/jwt");
  *           required:
  *             - firstName
  *             - lastName
- *             - phoneNo
  *             - email
  *             - password
  *           properties:
@@ -191,8 +190,6 @@ const auth = require("../middlewares/jwt");
  *               type: string
  *             lastName:
  *               type: string
- *             phoneNo:
- *               type: integer
  *             email:
  *               type: string
  *             password:
@@ -219,19 +216,19 @@ exports.register = [
 				var verifyToken = crypto.randomBytes(40).toString('hex'); // create token for account verificaton
 
 				let userData = {
-					firstName:request.body.firstName,
-					lastName:request.body.lastName,
-					email:request.body.email,
-					phoneNo:request.body.phoneNo,
+					firs_name:request.body.firstName,
+					last_name:request.body.lastName,
+					email_id:request.body.email,
 					password:request.body.password,
-					verifyToken:verifyToken,
-					status:0
+					verify_token:verifyToken,
+					role_id:'1',
+					status:'0'
 				};
 
-				userModel.registration(userData,async function(error,data){
+				userModel.registration(userData,async function(error){
 					if(!error){
 						// Html email body
-						let html = `<p>Hi ${request.body.firstName} ${request.body.lastName},<br></p><p>Please click this link and Confirm your Account.</p> <a href="${process.env.WEBSITE_URL}/activation/${verifyToken}">Active</a>`;
+						let html = `<p>Hi ${request.body.firstName} ${request.body.lastName},<br></p><p>Please click this link and Confirm your Account.</p> <a href="${process.env.APP_URL}:${process.env.APP_PORT}/activation/${verifyToken}">Active</a>`;
 						// Send confirmation email
 						try{
 							await mailer.send(
@@ -301,12 +298,12 @@ exports.login = [
 								let userData = user;
 								//Prepare JWT token for authentication
 								const jwtPayload = userData;
-								const jwtData = {
-									expiresIn: process.env.JWT_TIMEOUT_DURATION,
-								};
+								// const jwtData = {
+								// 	expiresIn: process.env.JWT_TIMEOUT_DURATION,
+								// };
 								const secret = process.env.JWT_SECRET;
 								//Generated JWT token with Payload and secret.
-								userData.token = jwt.sign(jwtPayload, secret, jwtData);
+								userData.token = jwt.sign(jwtPayload, secret);
 								return apiResponse.successResponseWithData(response,"Login Success.", userData);
 							}else{
 								return apiResponse.unauthorizedResponse(response, user.msg);
@@ -433,22 +430,16 @@ exports.changePassword = [
 				// Display sanitized values/errors messages.
 				return apiResponse.validationErrorWithData(response, "Validation Error.", errors.array());
 			}else {
-				bcrypt.hash(request.body.newPassword,10,function(err, hash) {
-					if(err){
-						return apiResponse.ErrorResponse(response, "Something went wrong!");
-					}else{
-						let userId = request.user.id;
-						let password = hash;
+				let userId = request.user.id;
+				let password = request.body.newPassword;
 
-						userModel.updatePassword(userId,password,function(error,msg){
-							if(error){
-								return apiResponse.ErrorResponse(response, msg);
-							}else{
-								return apiResponse.successResponse(response, msg);
-							}
-						})
+				userModel.updatePassword(userId,password,function(error,msg){
+					if(error){
+						return apiResponse.ErrorResponse(response, msg);
+					}else{
+						return apiResponse.successResponse(response, msg);
 					}
-				});
+				})
 			}
 
 		} catch (err) {
