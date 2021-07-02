@@ -1,132 +1,96 @@
-var express = require("express");
-var router = express.Router();
-require("../routes/userManagement");
+const { create, getUsers, getUserByUserId, updateUser, deleteUser } = require("../models/userManagModel");
 
+const { genSaltSync, hashSync, compareSync } = require("bcrypt");
+const { sign } = require("jsonwebtoken");
+const { validationResult } = require("express-validator");
 
+const userManagModel = require("../models/userManagModel");
+const userValidation = require("../controllers/validation/userValidation");
 
-
-// Create and Save a new User
-router.create = (req, res) => {
-    // Validate request
-    if (!req.body) {
-      res.status(400).send({
-        message: "Content can not be empty!"
-      });
-    }
-  
-    // Create a User
-    const user = new User({
-        "id": users.id,
-        "first_name": users.first_name,
-        "last_name": users.last_name,
-        "email": users.email,
-        "phone_no": users.phone_no,
-        "alt_phone_no": users.alt_phone_no,
-    });
-  
-    // Save User in the database
-    User.create(user, (err, data) => {
-      if (err)
-        res.status(500).send({
-          message:
-            err.message || "Some error occurred while creating the User."
-        });
-      else res.send(data);
-    });
-};
-
-
-
-// Retrieve all Users from the database.
-router.findAll = (req, res) => {
-    User.getAll((err, data) => {
-      if (err)
-        res.status(500).send({
-          message:
-            err.message || "Some error occurred while retrieving users."
-        });
-      else res.send(data);
-    });
-};
-
-
-
-// Find a single User with a userId
-router.findOne = (req, res) => {
-    User.findById(req.params.userId, (err, data) => {
-      if (err) {
-        if (err.kind === "not_found") {
-          res.status(404).send({
-            message: `Not found User with id ${req.params.userId}.`
-          });
-        } else {
-          res.status(500).send({
-            message: "Error retrieving User with id " + req.params.userId
-          });
-        }
-      } else res.send(data);
-    });
-};
-
-
-
-// Update a User identified by the userId in the request
-router.update = (req, res) => {
-    // Validate Request
-    if (!req.body) {
-      res.status(400).send({
-        message: "Content can not be empty!"
-      });
-    }
-  
-    User.updateById(
-      req.params.userId,
-      new User(req.body),
-      (err, data) => {
-        if (err) {
-          if (err.kind === "not_found") {
-            res.status(404).send({
-              message: `Not found User with id ${req.params.userId}.`
-            });
-          } else {
-            res.status(500).send({
-              message: "Error updating User with id " + req.params.userId
-            });
+module.exports = 
+{
+  createUser : (req,res) => {
+      const body = req.body;
+      const salt = genSaltSync(10);
+      console.log("body=",body,"salt = ",salt);
+      body.password = hashSync(body.password, salt);
+      create(body, (err, results) => {
+          if (err) {
+              console.log(err);
+              return res.status(500).json({
+                  success: 0,
+                  message: "database connection error"
+              });
           }
-        } else res.send(data);
-      }
-    );
-};
-
-
-
-// Delete a User with the specified userId in the request
-router.delete = (req, res) => {
-    User.remove(req.params.userId, (err, data) => {
-      if (err) {
-        if (err.kind === "not_found") {
-          res.status(404).send({
-            message: `Not found User with id ${req.params.userId}.`
+          return res.status(200).json({
+              success: 1,
+              data: results
           });
-        } else {
-          res.status(500).send({
-            message: "Could not delete User with id " + req.params.userId
+      });
+  },
+  getUsers : (req,res) => {
+      getUsers((err, results) => {
+          if (err) {
+              console.log(err);
+              return;
+          }
+          return res.json({
+              success: 1,
+              data: results
           });
-        }
-      } else res.send({ message: `User was deleted successfully!` });
-    });
-};
-
-
-
-// Delete all Users from the database.
-router.deleteAll = (req, res) => {
-    User.removeAll((err, data) => {
-      if (err)
-        res.status(500).send({
-          message:
-            err.message || "Some error occurred while removing all users."
-        });
-      else res.send({ message: `All Users were deleted successfully!` });
-    });
+      });
+  },
+  getUserByUserId : (req,res) => {
+      const id = req.params.id;
+      getUserByUserId(id, (err, results) => {
+          if (err) {
+              console.log(err);
+              return;
+          }
+          if (!results) {
+              return res.json({
+                  success: 0,
+                  message: "record not found"
+              });
+          }
+          return res.json({
+              success: 1,
+              data: results
+          });
+      });
+  },
+  updateUser : (req, res)=> {
+      const body = req.body;
+      const salt = genSaltSync(10);
+      body.password = hashSync(body.password,salt);
+      updateUser(body, (err, results) => {
+          if (err) {
+              console.log(err);
+              return;
+          }
+          return res.json({
+              success:1,
+              message: "updated successfully"
+          });
+      });
+  },
+  deleteUser : (req,res) => {
+      const data = req.body;
+      deleteUser(data, (err, results) => {
+          if (err) {
+              console.log(err);
+              return;
+          }
+          if (!results) {
+              return res.json({
+                  success: 0,
+                  message: "record not found"
+              });
+          }
+          return res.json({
+              success: 1,
+              data: "user deleted successfully"
+          });
+      });
+  },
 };
