@@ -120,7 +120,7 @@ exports.login = (email,password,callback) => {
 
 exports.registration = async (userData,callback) => {
 	try{
-		userData.password = await bcrypt.hash(66,10); 
+		userData.password = await bcrypt.hash(userData.password,10); 
 		let userDataTemp = [
 			userData.firs_name,
 			userData.last_name,
@@ -131,7 +131,7 @@ exports.registration = async (userData,callback) => {
 			userData.status
 		];
 		let userQuery = "INSERT INTO users (first_name, last_name, email_id, password, verify_token, role_id, status) VALUES (?,?,?,?,?,?,?)";
-		sql.query(userQuery, 4, function (err, result) {  
+		sql.query(userQuery, userDataTemp, function (err, result) {  
 			console.log(err);		
 			if (err){
 				callback(true);

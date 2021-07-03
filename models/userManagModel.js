@@ -4,30 +4,28 @@ var sql = require('../helpers/databaseConfig');
 module.exports = {
     create: async(userData, callback) => {
         try{
-            userData.password = await bcrypt.hash(66,10); 
-		let userDataTemp = [
-			userData.first_name,
-			userData.last_name,
-			userData.email_id,
-            userData.contact_no,
-			userData.password,
-			userData.verify_token,
-			userData.role_id,
-			userData.status
-		];
-		let userQuery = "INSERT INTO users (first_name, last_name, email_id, contact_no, password, verify_token, role_id, status) VALUES (?,?,?,?,?,?,?)";
-		sql.query(userQuery, 4, function (err, result) {  
-			console.log(err);		
-			if (err){
-				callback(true);
-			}else{
-				callback(false);
-			}
-        });
-    }catch(error){
-		console.log(error);
-		callback(true);
-	}   
+            userData.password = await bcrypt.hash(userData.password,10); 
+            let userDataTemp = [
+                userData.firstName,
+                userData.lastName,
+                userData.email,
+                userData.phoneNo,
+                userData.password,
+                '2',
+                '0'
+            ];
+            let userQuery = "INSERT INTO users (first_name, last_name, email_id, contact_no, password, role_id, status) VALUES (?,?,?,?,?,?,?)";
+            sql.query(userQuery,userDataTemp, function (err, result) {  
+                console.log(err);		
+                if (err){
+                    callback(true,"something went wrong!, please try again.");
+                }else{
+                    callback(false,"User save successfully!");
+                }
+            });
+        }catch(error){
+            callback(true,"something went wrong!, please try again.");
+        }   
         
     },
     getUsers: callback => {
